@@ -1,8 +1,15 @@
 import type { AgentLoop } from "../../utils/agent/agent-loop.js";
 
+import {
+  AZURE_OPENAI_ENDPOINT,
+  AZURE_OPENAI_API_KEY,
+  AZURE_OPENAI_API_VERSION,
+  AZURE_OPENAI_DEPLOYMENT_NAME,
+} from "../../utils/config";
 import { Box, Text } from "ink";
 import path from "node:path";
 import React from "react";
+
 
 export interface TerminalHeaderProps {
   terminalRows: number;
@@ -27,12 +34,19 @@ const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   initialImagePaths,
   flexModeEnabled = false,
 }) => {
+  // Detect Azure OpenAI configuration
+  const azureEnabled = Boolean(
+    AZURE_OPENAI_ENDPOINT &&
+    AZURE_OPENAI_API_KEY &&
+    AZURE_OPENAI_API_VERSION &&
+    AZURE_OPENAI_DEPLOYMENT_NAME,
+  );
   return (
     <>
       {terminalRows < 10 ? (
         // Compact header for small terminal windows
         <Text>
-          ● Codex v{version} – {PWD} – {model} –{" "}
+          ● {azureEnabled ? "Azure Codex" : "Codex"} v{version} – {PWD} – {model} –{" "}
           <Text color={colorsByPolicy[approvalPolicy]}>{approvalPolicy}</Text>
           {flexModeEnabled ? " – flex-mode" : ""}
         </Text>
@@ -40,7 +54,7 @@ const TerminalHeader: React.FC<TerminalHeaderProps> = ({
         <>
           <Box borderStyle="round" paddingX={1} width={64}>
             <Text>
-              ● OpenAI <Text bold>Codex</Text>{" "}
+              ● {azureEnabled ? "Azure OpenAI" : "OpenAI"} <Text bold>Codex</Text>{" "}
               <Text dimColor>
                 (research preview) <Text color="blueBright">v{version}</Text>
               </Text>

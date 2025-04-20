@@ -22,6 +22,11 @@ import {
   loadConfig,
   PRETTY_PRINT,
   INSTRUCTIONS_FILEPATH,
+  // Azure OpenAI Service configuration
+  AZURE_OPENAI_ENDPOINT,
+  AZURE_OPENAI_API_KEY as AZURE_KEY,
+  AZURE_OPENAI_API_VERSION,
+  AZURE_OPENAI_DEPLOYMENT_NAME,
 } from "./utils/config";
 import { createInputItem } from "./utils/input-utils";
 import {
@@ -224,20 +229,33 @@ if (cli.flags.config) {
 }
 
 // ---------------------------------------------------------------------------
-// API key handling
+// API key / Azure OpenAI Service configuration
 // ---------------------------------------------------------------------------
 
+// Detect if Azure OpenAI Service is fully configured
+const azureConfigured = Boolean(
+  AZURE_OPENAI_ENDPOINT &&
+  AZURE_KEY &&
+  AZURE_OPENAI_API_VERSION &&
+  AZURE_OPENAI_DEPLOYMENT_NAME,
+);
+// Public OpenAI API key
 const apiKey = process.env["OPENAI_API_KEY"];
 
-if (!apiKey) {
+if (!apiKey && !azureConfigured) {
   // eslint-disable-next-line no-console
   console.error(
-    `\n${chalk.red("Missing OpenAI API key.")}\n\n` +
-      `Set the environment variable ${chalk.bold("OPENAI_API_KEY")} ` +
-      `and re-run this command.\n` +
-      `You can create a key here: ${chalk.bold(
-        chalk.underline("https://platform.openai.com/account/api-keys"),
-      )}\n`,
+    `\n${chalk.red("Missing OpenAI API key or Azure OpenAI configuration.")}\n\n` +
+    `Set the environment variable ${chalk.bold("OPENAI_API_KEY")} ` +
+    `or configure Azure OpenAI Service by setting ` +
+    `${chalk.bold(
+      "AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_API_VERSION, AZURE_OPENAI_DEPLOYMENT_NAME",
+    )} and re-run this command.\n` +
+    `For OpenAI keys, you can create one here: ${chalk.bold(
+      chalk.underline(
+        "https://platform.openai.com/account/api-keys",
+      ),
+    )}\n`,
   );
   process.exit(1);
 }
@@ -251,15 +269,20 @@ let config = loadConfig(undefined, undefined, {
 });
 
 const prompt = cli.input[0];
-const model = cli.flags.model;
+const flagModel = cli.flags.model;
 const imagePaths = cli.flags.image as Array<string> | undefined;
+
+// If Azure is configured, use the Azure deployment name as the model
+const selectedModel = azureConfigured
+  ? AZURE_OPENAI_DEPLOYMENT_NAME
+  : flagModel ?? config.model;
 
 config = {
   apiKey,
   ...config,
-  model: model ?? config.model,
   flexMode: Boolean(cli.flags.flexMode),
   notify: Boolean(cli.flags.notify),
+  model: selectedModel,
 };
 
 // Check for updates after loading config
@@ -275,7 +298,7 @@ if (cli.flags.flexMode) {
     // eslint-disable-next-line no-console
     console.error(
       `The --flex-mode option is only supported when using the 'o3' or 'o4-mini' models. ` +
-        `Current model: '${config.model}'.`,
+      `Current model: '${config.model}'.`,
     );
     process.exit(1);
   }
@@ -285,9 +308,9 @@ if (!(await isModelSupportedForResponses(config.model))) {
   // eslint-disable-next-line no-console
   console.error(
     `The model "${config.model}" does not appear in the list of models ` +
-      `available to your account. Double‑check the spelling (use\n` +
-      `  openai models list\n` +
-      `to see the full list) or choose another model with the --model flag.`,
+    `available to your account. Double‑check the spelling (use\n` +
+    `  openai models list\n` +
+    `to see the full list) or choose another model with the --model flag.`,
   );
   process.exit(1);
 }
@@ -344,8 +367,8 @@ if (quietMode) {
     cli.flags.fullAuto || cli.flags.approvalMode === "full-auto"
       ? AutoApprovalMode.FULL_AUTO
       : cli.flags.autoEdit || cli.flags.approvalMode === "auto-edit"
-      ? AutoApprovalMode.AUTO_EDIT
-      : config.approvalMode || AutoApprovalMode.SUGGEST;
+        ? AutoApprovalMode.AUTO_EDIT
+        : config.approvalMode || AutoApprovalMode.SUGGEST;
 
   await runQuietMode({
     prompt: prompt as string,
@@ -375,8 +398,8 @@ const approvalPolicy: ApprovalPolicy =
   cli.flags.fullAuto || cli.flags.approvalMode === "full-auto"
     ? AutoApprovalMode.FULL_AUTO
     : cli.flags.autoEdit || cli.flags.approvalMode === "auto-edit"
-    ? AutoApprovalMode.AUTO_EDIT
-    : config.approvalMode || AutoApprovalMode.SUGGEST;
+      ? AutoApprovalMode.AUTO_EDIT
+      : config.approvalMode || AutoApprovalMode.SUGGEST;
 
 preloadModels();
 
